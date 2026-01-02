@@ -11,7 +11,7 @@ class DataConfig:
     start_date: str = '2015-01-01'
     end_date: str = '2025-01-01'
     cl_ticker: str = 'CL=F'  # WTI Crude Oil Futures
-    ho_ticker: str = 'HO=F'  # Heating Oil Futures
+    ho_ticker: str = 'RB=F'  # Heating Oil Futures
     
     # Data quality
     min_price_threshold: float = 0.1  # Filter out erroneous prices
