@@ -91,17 +91,15 @@ class DataHandler:
     
     def _clean_dataframe(self, df: pd.DataFrame, prefix: str) -> pd.DataFrame:
         """Clean multi-index columns and handle missing data"""
-        # Handle multi-index columns from yfinance
         if isinstance(df.columns, pd.MultiIndex):
             df = df.copy()
             df.columns = df.columns.droplevel(1)
         
-        # Replace zeros and invalid values with NaN
+        # Replace zeros with NaN
         df = df.replace(0, np.nan)
-        df = df[df > 0]  # Keep only positive prices
         
-        # Forward fill small gaps (max 3 days)
-        df = df.fillna(method='ffill', limit=3)
+        # Forward fill small gaps (FIXED METHOD)
+        df = df.ffill(limit=3)
         
         # Drop remaining NaNs
         df = df.dropna()
@@ -323,3 +321,57 @@ class DataHandler:
         
         report += "\n" + "=" * 60 + "\n"
         return report
+    
+
+    def calculate_rolling_cointegration(self, window: int = 252) -> pd.DataFrame:
+        """
+        Calculate cointegration on a rolling basis
+        
+        Args:
+            window: Rolling window in days (252 = 1 year, 126 = 6 months)
+        
+        Returns:
+            DataFrame with rolling cointegration p-values and status
+        """
+        print(f"\n🔄 Calculating rolling cointegration (window={window} days)...")
+        
+        cl = self.df['CL_Close'].values
+        ho = self.df['HO_Close'].values  # Will work for NG too
+        
+        rolling_results = []
+        
+        # Calculate cointegration for each rolling window
+        for i in range(window, len(cl)):
+            # Extract window of data
+            cl_window = cl[i-window:i]
+            ho_window = ho[i-window:i]
+            
+            # Run cointegration test
+            try:
+                _, pvalue, _ = coint(cl_window, ho_window)
+                rolling_results.append({
+                    'Date': self.df.index[i],
+                    'Coint_PValue': pvalue,
+                    'Is_Cointegrated': pvalue < 0.05
+                })
+            except Exception as e:
+                # Handle calculation errors gracefully
+                rolling_results.append({
+                    'Date': self.df.index[i],
+                    'Coint_PValue': np.nan,
+                    'Is_Cointegrated': False
+                })
+        
+        results_df = pd.DataFrame(rolling_results).set_index('Date')
+        
+        # Print summary statistics
+        valid_results = results_df['Coint_PValue'].dropna()
+        pct_cointegrated = (results_df['Is_Cointegrated'].sum() / len(results_df)) * 100
+        
+        print(f"✅ Analysis complete:")
+        print(f"   Cointegrated: {pct_cointegrated:.1f}% of the time")
+        print(f"   Mean p-value: {valid_results.mean():.4f}")
+        print(f"   Min p-value: {valid_results.min():.4f}")
+        print(f"   Max p-value: {valid_results.max():.4f}")
+        
+        return results_df

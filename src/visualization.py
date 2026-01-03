@@ -441,7 +441,7 @@ class Visualizer:
         
         
         
-        plt.fill_between(results.index, 0, results['Rolling_Sharpe'],
+        axes[0].fill_between(results.index, 0, results['Rolling_Sharpe'],
                         where=results['Rolling_Sharpe'] > 0,
                         color=self.colors['success'], alpha=0.3)
         axes[0].set_title('Rolling 60-Day Sharpe Ratio', fontweight='bold')
@@ -650,3 +650,56 @@ class Visualizer:
         print("\n✅ Complete visual report generated!")
         print(f"   All plots saved to: {output_dir}/")
         print("=" * 60)
+
+    def plot_rolling_cointegration(self, rolling_coint: pd.DataFrame, 
+                                save_path: Optional[str] = None):
+        """
+        Visualize rolling cointegration analysis
+        
+        Args:
+            rolling_coint: DataFrame from calculate_rolling_cointegration()
+            save_path: Optional path to save figure
+        """
+        fig, axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
+        
+        # Plot 1: P-value over time
+        axes[0].plot(rolling_coint.index, rolling_coint['Coint_PValue'],
+                    color=self.colors['primary'], linewidth=1.5, label='P-Value')
+        axes[0].axhline(0.05, color=self.colors['danger'], 
+                    linestyle='--', linewidth=2, label='Significance Threshold (α=0.05)')
+        axes[0].fill_between(rolling_coint.index, 0, 0.05,
+                            color=self.colors['success'], alpha=0.2, 
+                            label='Cointegrated Zone (p < 0.05)')
+        axes[0].set_title('Rolling Cointegration P-Value Over Time', 
+                        fontweight='bold', fontsize=14)
+        axes[0].set_ylabel('P-Value', fontweight='bold')
+        axes[0].set_ylim([0, max(0.15, rolling_coint['Coint_PValue'].max())])
+        axes[0].legend(loc='best', framealpha=0.9)
+        axes[0].grid(True, alpha=0.3)
+        
+        # Plot 2: Binary cointegration status
+        axes[1].fill_between(rolling_coint.index, 0, rolling_coint['Is_Cointegrated'],
+                            color=self.colors['success'], alpha=0.6, step='post',
+                            label='Cointegrated Periods')
+        axes[1].fill_between(rolling_coint.index, 
+                            rolling_coint['Is_Cointegrated'], 1,
+                            where=~rolling_coint['Is_Cointegrated'],
+                            color=self.colors['danger'], alpha=0.6, step='post',
+                            label='Non-Cointegrated Periods')
+        axes[1].set_title('Cointegration Status (Trading Allowed vs. Paused)', 
+                        fontweight='bold', fontsize=14)
+        axes[1].set_ylabel('Status', fontweight='bold')
+        axes[1].set_xlabel('Date', fontweight='bold')
+        axes[1].set_ylim([-0.1, 1.1])
+        axes[1].set_yticks([0, 1])
+        axes[1].set_yticklabels(['❌ Not Cointegrated', '✅ Cointegrated'])
+        axes[1].legend(loc='best', framealpha=0.9)
+        axes[1].grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=self.config.plot_dpi, bbox_inches='tight')
+            print(f"✅ Saved rolling cointegration plot to: {save_path}")
+        
+        plt.show()

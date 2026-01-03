@@ -5,8 +5,6 @@ Main execution script
 Author: Alexander Robbins
 Date: 2025
 """
-
-from logging import config
 import pandas as pd
 import numpy as np
 import warnings
@@ -72,6 +70,29 @@ def main():
     # Print summary
     print(data_handler.generate_summary_report())
     
+
+# Print summary
+
+    # === NEW: Rolling Cointegration Analysis ===
+    response = input("\n🔄 Run rolling cointegration analysis? (y/n): ")
+    if response.lower() == 'y':
+        window_input = input("   Enter window size in days (default 252 for 1 year): ")
+        rolling_window = int(window_input) if window_input else 252
+        
+        # Calculate rolling cointegration
+        rolling_coint = data_handler.calculate_rolling_cointegration(window=rolling_window)
+        
+        # Save results to CSV
+        csv_path = f"{config.output.results_dir}/rolling_cointegration.csv"
+        rolling_coint.to_csv(csv_path)
+        print(f"   💾 Results saved to: {csv_path}")
+        
+        # Visualize
+        visualizer = Visualizer(config.output)
+        plot_path = f"{config.output.results_dir}/rolling_cointegration.{config.output.plot_format}"
+        visualizer.plot_rolling_cointegration(rolling_coint, save_path=plot_path)
+
+
     # Ask user if they want to proceed if validation fails
     if not (coint_results['is_cointegrated'] and stat_results['is_stationary']):
         response = input("\n⚠️  Statistical tests show mixed results. Continue anyway? (y/n): ")

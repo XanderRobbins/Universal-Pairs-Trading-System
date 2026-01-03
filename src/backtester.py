@@ -63,6 +63,7 @@ class Backtester:
         # === 4. Calculate Drawdown ===
         print("4️⃣  Calculating drawdown metrics...")
         df = self._calculate_drawdown(df)
+        df = self._apply_circuit_breakers(df)
         
         # === 5. Track Individual Trades ===
         print("5️⃣  Extracting trade log...")
@@ -79,20 +80,26 @@ class Backtester:
         return df
     
     def _calculate_returns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate strategy returns based on spread movement"""
+        """Calculate returns from actual leg positions (SPY and QQQ)"""
         
-        # Spread return (percentage change in spread)
-        df['Spread_Return'] = df['Spread'].pct_change()
+        # Calculate individual asset returns
+        df['CL_Return'] = df['CL_Close'].pct_change()  # SPY return
+        df['HO_Return'] = df['HO_Close'].pct_change()  # QQQ return
         
-        # Gross return = Position * Spread Return
-        # Use lagged position (enter on signal, realize return next day)
-        df['Gross_Return'] = df['Position'].shift(1) * df['Spread_Return']
+        # For long spread: buy SPY, short QQQ (equal dollar amounts)
+        # For short spread: short SPY, buy QQQ
+        df['Leg1_Return'] = df['Position'].shift(1) * df['CL_Return']
+        df['Leg2_Return'] = -df['Position'].shift(1) * df['HO_Return']
+        
+        # Combined return (50/50 allocation between legs)
+        df['Gross_Return'] = (df['Leg1_Return'] + df['Leg2_Return']) / 2
         
         # Handle NaN values
         df['Gross_Return'].fillna(0, inplace=True)
         
         return df
-    
+
+
     def _apply_transaction_costs(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Apply realistic transaction costs
@@ -141,6 +148,25 @@ class Backtester:
         
         # Daily P&L in dollars
         df['Daily_PnL'] = df['Portfolio_Value'].diff().fillna(0)
+        
+        return df
+    
+
+    def _apply_circuit_breakers(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Stop trading if catastrophic losses occur"""
+        
+        for i in range(len(df)):
+            # Stop if portfolio goes negative
+            if df['Portfolio_Value'].iloc[i] < 0:
+                print(f"\n🚨 CIRCUIT BREAKER: Portfolio went negative on {df.index[i]}")
+                df.loc[df.index[i]:, 'Position'] = 0
+                break
+            
+            # Stop if drawdown > 50%
+            if df['Drawdown'].iloc[i] < -0.50:
+                print(f"\n🚨 CIRCUIT BREAKER: 50% drawdown hit on {df.index[i]}")
+                df.loc[df.index[i]:, 'Position'] = 0
+                break
         
         return df
     

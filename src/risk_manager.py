@@ -116,6 +116,22 @@ class RiskManager:
             0
         )
         
+                # === HARD CAPS TO PREVENT RUNAWAY SIZING ===
+        max_contracts_hard_limit = 10  # Never exceed 10 contracts
+        max_capital_pct = 0.20  # Never use more than 20% of capital
+
+        position_size = np.minimum(position_size, max_contracts_hard_limit)
+
+        # Also cap by capital percentage
+        capital_based_limit = (
+            self.config.initial_capital * max_capital_pct
+        ) / (df['CL_Close'] * 1000)
+
+        position_size = np.minimum(position_size, capital_based_limit)
+
+        # Only apply position sizing when we have an active signal
+
+
         return position_size
     
     def set_stop_loss_take_profit(self, df: pd.DataFrame, 
@@ -379,3 +395,7 @@ class RiskManager:
         fractional_kelly = kelly * 0.25
         
         return max(0, fractional_kelly)  # Never go negative
+    
+
+
+

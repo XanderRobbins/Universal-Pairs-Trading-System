@@ -199,41 +199,47 @@ class CrackSpreadStrategy:
         
         return df
     
-    def _generate_entry_signals(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _generate_entry_signals(self, df: pd.DataFrame, 
+                         rolling_coint: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """
-        Generate entry signals with multiple confirmation filters
+        Generate entry signals with cointegration filter
         
-        Entry logic:
-        - Z-score crosses threshold
-        - Regime is favorable (mean-reverting or neutral)
-        - Momentum confirms (not fighting strong trend)
-        - No existing position
+        Args:
+            df: Market data
+            rolling_coint: Rolling cointegration results (if available)
         """
         df['Signal'] = 0
         
-        # === Long Entry Conditions ===
-        long_zscore = df['Z_Score'] < df['Z_Threshold_Long']
-        long_regime = df['Regime_Composite'].isin(['Mean_Reverting', 'Trending_Down'])
-        long_momentum = df['Long_Momentum_OK']
+        # === Existing entry logic ===
+        long_condition = (
+            (df['Z_Score'] < df['Z_Threshold_Long']) &
+            (df['Regime_Composite'].isin(['Mean_Reverting', 'Trending_Down'])) &
+            (df['Long_Momentum_OK'])
+        )
         
-        long_condition = long_zscore & long_regime & long_momentum
+        short_condition = (
+            (df['Z_Score'] > df['Z_Threshold_Short']) &
+            (df['Regime_Composite'].isin(['Mean_Reverting', 'Trending_Up'])) &
+            (df['Short_Momentum_OK'])
+        )
         
-        # === Short Entry Conditions ===
-        short_zscore = df['Z_Score'] > df['Z_Threshold_Short']
-        short_regime = df['Regime_Composite'].isin(['Mean_Reverting', 'Trending_Up'])
-        short_momentum = df['Short_Momentum_OK']
+        # === NEW: Cointegration Filter ===
+        if rolling_coint is not None:
+            # Align cointegration status with trading signals
+            coint_status = rolling_coint['Is_Cointegrated'].reindex(df.index, method='ffill')
+            
+            # Only trade when cointegrated
+            long_condition = long_condition & coint_status
+            short_condition = short_condition & coint_status
+            
+            print(f"   Cointegration filter active: trading only {coint_status.sum()} / {len(df)} days")
         
-        short_condition = short_zscore & short_regime & short_momentum
-        
-        # Mark signals
         df.loc[long_condition, 'Signal'] = 1
         df.loc[short_condition, 'Signal'] = -1
         
-        # Prevent simultaneous long and short (shouldn't happen, but safety check)
-        df.loc[long_condition & short_condition, 'Signal'] = 0
-        
         return df
-    
+
+
     def _generate_exit_signals(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Generate exit signals based on multiple criteria
