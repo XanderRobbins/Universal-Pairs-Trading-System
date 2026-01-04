@@ -14,7 +14,7 @@
 
 ---
 
-## 📋 Overview
+## Overview
 
 The **Universal Pairs Trading System** is a sophisticated mean-reversion strategy framework designed for cointegrated asset pairs. Built with institutional-grade risk management and comprehensive statistical validation, it works seamlessly across stocks, ETFs, futures, commodities, and cryptocurrencies.
 
